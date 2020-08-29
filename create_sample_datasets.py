@@ -6,11 +6,12 @@ representing images
 import pandas as pd
 import numpy as np
 import os
+from config import DEF_PATH28, DEF_PATH48
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 
-def create_df_28x28(path_28 = 'sample_data_28x28.csv'):
+def create_df_28x28(path_28 = DEF_PATH28):
     """
     Creates dataframe with 28*28 random values in range (0, 255) and label and saves to csv file
     :param path_28: path to save new dataframe
@@ -31,19 +32,18 @@ def create_df_28x28(path_28 = 'sample_data_28x28.csv'):
     return df28
 
 
-def create_df_48x48(path_48 = 'sample_data_48x48.csv'):
+def create_df_48x48(path_48 = DEF_PATH48):
     """
     Creates dataframe with 48*48 random values in range (0, 255) and random labels and saves to csv file
     :param path_28: path to save new dataframe
     :return: dataframe with 48*48 random values and label
     """
     size48 = 48*48  # for images 48*48 pixs
-    random_value_list = np.random.randint(0, 255, size=(1, size28))
+    random_value_list = np.random.randint(0, 255, size=(1, size48))
     df48 = pd.DataFrame(random_value_list)
     df48[size48] = np.random.randint(0, 10)  # label
-
     for row in range(30):
-        random_value_list = np.random.randint(0, 255, size=(1, size28))
+        random_value_list = np.random.randint(0, 255, size=(1, size48))
         random_label = np.random.randint(0, 10, size=(1, 1))
         new_row = pd.DataFrame(np.hstack((random_value_list, random_label)))
         df48 = pd.concat((df48, new_row), ignore_index=True)
