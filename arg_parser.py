@@ -1,8 +1,5 @@
 import argparse
-import os
-DEF_ORIG_PATH = 'train.csv'
-DEF_AUG_PATH = 'aug.csv'
-DEF_N = 3500
+from config import DEF_ORIG_PATH, DEF_AUG_PATH, DEF_N
 
 
 def arg_parser_cli():
