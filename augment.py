@@ -4,14 +4,49 @@ import os
 import cv2
 import imutils
 from skimage.transform import AffineTransform, warp
+
 from arg_parser import arg_parser_cli
+from config import DEF_ORIG_PATH, DEF_AUG_PATH, DEF_N, DEF_PATH28
 args = arg_parser_cli()  # args.number_of_added_rows, args.original_data_path, etc...
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# print(current_dir, os.listdir(current_dir))
 
 
-def get_image_shape(original_data_path):
-    return (48, 48)
+def get_data(original_data_path = DEF_ORIG_PATH, label_column_index=-1):
+    """
+    Gets original data from the path
+    :param original_data_path: path to original data stored in scv or zip file
+    :param label_column_index: index of column corresponding to label, defaults to the last column
+    :return: X_train and y_train
+    """
+    if original_data_path.split('.')[-1] == 'csv':
+        df = pd.read_csv(original_data_path)
+    elif original_data_path.split('.')[-1] == 'zip':
+        df = pd.read_csv(original_data_path, compression='zip')
+    else:
+        df = pd.read_csv(DEF_PATH28)  # TODO: maybe sth else?
+
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    X_train, y_train = df.drop(label_column_index, axis=1), df.iloc[:, label_column_index]  # TODO: drop ok?!
+
+    return X_train, y_train
+
+
+def get_image_shape(original_data_path = DEF_ORIG_PATH):
+    """
+    Gets image shapes stored in train data assuming that images are square
+    :param original_data_path: path to initial data
+    :return: shape of images
+    """
+    row_length = X_train.shape[1]
+    # now we don't know whether the image is colored or not, let's figure this out
+    if row_length % 3 == 0:
+        h = int(np.sqrt(row_length/3))
+        if row_length == h * h * 3:
+            shape = (h, h, 3)
+    else:
+        h = int(np.sqrt(row_length))
+        shape = (h, h)
+    return shape
 
 
 def horiz_flip_row(row):
@@ -19,13 +54,13 @@ def horiz_flip_row(row):
     Horizontally flips the image (this means that it flips the image with respect
     to the vertical line)
     Args:
-        row with 784 integers of pixel values of original image
+        row with integers of pixel values of original image
     Returns:
-        row with 784 pixel values of transformed image
+        row with pixel values of transformed image
     """
-    img_array = np.array(row).reshape(28, -1)
+    img_array = np.array(row).reshape(shape[0], -1)
     flipped_img = np.fliplr(img_array)
-    flipped_row = pd.DataFrame(list(flipped_img.reshape(1, 784)), columns=X_train.columns)
+    flipped_row = pd.DataFrame(list(flipped_img.reshape(1, -1)), columns=X_train.columns)
     return flipped_row
 
 
@@ -33,15 +68,15 @@ def rotate_row(row):
     """
     Rotates the image on some random angle between -20 and 20
     Args:
-        row with 784 integers of pixel values of original image
+        row with integers of pixel values of original image
     Returns:
-        row with 784 pixel values of transformed image
+        row with pixel values of transformed image
     """
-    img_row = np.array(row).reshape(28, 28)
+    img_row = np.array(row).reshape(shape[0], -1)
     angle = np.random.randint(-10, 10)
-    cv2.imwrite('gest_row_to_rotate.jpg', img_row)
+    cv2.imwrite('row_to_rotate.jpg', img_row)
     rotated_img = imutils.rotate(cv2.imread('gest_row_to_rotate.jpg'), angle)
-    rotated_row = pd.DataFrame(list(rotated_img[:, :, 0].reshape(1, 784)), columns=X_train.columns)
+    rotated_row = pd.DataFrame(list(rotated_img[:, :, 0].reshape(1, -1)), columns=X_train.columns)
     return rotated_row
 
 
@@ -49,15 +84,15 @@ def move_vertically_row(row):
     """
     Moves image up or down a bit
     Args:
-        row with 784 integers of pixel values of original image
+        row with integers of pixel values of original image
     Returns:
-        row with 784 pixel values of transformed image
+        row with pixel values of transformed image
     """
     shift = np.random.randint(-3, 3)
     af_trans = AffineTransform(translation=(0, shift))
-    img_array = np.array(row).reshape(28, -1)
+    img_array = np.array(row).reshape(shape[0], -1)
     shifted_img = warp(img_array, af_trans, mode='wrap')
-    shifted_row = pd.DataFrame(list(shifted_img.reshape(1, 784)), columns=X_train.columns)
+    shifted_row = pd.DataFrame(list(shifted_img.reshape(1, -1)), columns=X_train.columns)
     return shifted_row
 
 
@@ -65,15 +100,15 @@ def move_horizontally_row(row):
     """
     Moves image left or righ a bit
     Args:
-        row with 784 integers of pixel values of original image
+        row with integers of pixel values of original image
     Returns:
-        row with 784 pixel values of transformed image
+        row with pixel values of transformed image
     """
     shift = np.random.randint(-3, 3)
     af_trans = AffineTransform(translation=(shift, 0))
-    img_array = np.array(row).reshape(28, -1)
+    img_array = np.array(row).reshape(shape[0], -1)
     shifted_img = warp(img_array, af_trans, mode='wrap')
-    shifted_row = pd.DataFrame(list(shifted_img.reshape(1, 784)), columns=X_train.columns)
+    shifted_row = pd.DataFrame(list(shifted_img.reshape(1, -1)), columns=X_train.columns)
     return shifted_row
 
 
@@ -82,17 +117,17 @@ def noise_row(row, noise_type='gaussian'):
     Induces some random noise on the image. For now, it's only gaussian
     Other options will be added later
     Args:
-        row with 784 integers of pixel values of original image
+        row with integers of pixel values of original image
     Returns:
-        row with 784 pixel values of transformed image
+        row with pixel values of transformed image
     """
-    img_array = np.array(row).reshape(28, -1)
+    img_array = np.array(row).reshape(shape[0], -1)
     if noise_type == 'gaussian':
         row, col = img_array.shape
         mean, var = np.random.randint(60, 80), np.random.randint(9, 25)
         gauss = np.random.normal(mean, np.sqrt(var), (row, col)).reshape(row, col)
         noised_img = img_array + gauss
-        noised_row = pd.DataFrame(list(noised_img.reshape(1, 784)), columns=X_train.columns)
+        noised_row = pd.DataFrame(list(noised_img.reshape(1, -1)), columns=X_train.columns)
         return noised_row
 
 
@@ -100,23 +135,19 @@ def blur_row(row):
     """
     Puts gaussian blur on the image
     Args:
-        row with 784 integers of pixel values of original image
+        row with integers of pixel values of original image
     Returns:
-        row with 784 pixel values of transformed image
+        row with pixel values of transformed image
     """
-    img_array = np.array(row).reshape(28, -1)
+    img_array = np.array(row).reshape(shape[0], -1)
     cv2.imwrite('ges_row_to_blur.jpg', img_array)
     blurred_img = cv2.GaussianBlur(cv2.imread('ges_row_to_blur.jpg'), (3, 3), 0)[:, :, 0]
-    blurred_row = pd.DataFrame(list(blurred_img.reshape(1, 784)), columns=X_train.columns)
+    blurred_row = pd.DataFrame(list(blurred_img.reshape(1, -1)), columns=X_train.columns)
     return blurred_row
 
 
-trans_options = ['horiz_flip_row', 'rotate_row', 'move_vertically_row', 'move_horizontally_row',
-                 'blur_row', 'noise_row']
-
-
-def augmentate(row_index, X_train, y_train, horiz_flip=True, rotate_r=True, move_vert=False, move_hor=False,
-               blur_r=False, noise_r=True):
+def augmentate(row_index, horiz_flip, rotate_r, move_vert, move_hor,
+               blur_r, noise_r):
     """
     Horizontally flips the image (this means that it flips the image with respect
     to the vertical line)
@@ -151,7 +182,7 @@ def augmentate(row_index, X_train, y_train, horiz_flip=True, rotate_r=True, move
     return start_df, finish_label
 
 
-def augment_train(X_train, y_train, max_quantity_to_add=4500, path_to_save_aug=PATH_AUG):
+def augment_train(max_quantity_to_add=DEF_N, path_to_save_aug=DEF_AUG_PATH):
     """
     Takes train set, images and labels, and generates some number of new pics of each label
     Args:
@@ -171,7 +202,14 @@ def augment_train(X_train, y_train, max_quantity_to_add=4500, path_to_save_aug=P
 
     for i in X_train.index.tolist():
         if counters_dict[y_train[i]] <= max_quantity_to_add:
-            new_x_chunk, new_y_labels = augmentate(i, X_train, y_train, move_hor=True, move_vert=True)
+            new_x_chunk, new_y_labels = augmentate(i, X_train, y_train,
+                                                   horiz_flip=args.horiz_flip_row,
+                                                   rotate_r = args.rotate_row,
+                                                   move_vert = args.move_up_down_row,
+                                                   move_hor = args.move_right_left_row,
+                                                   blur_r = args.gaussian_noise_row,
+                                                   noise_r = args.blur_row
+                                                   )
             start_x = start_x.append(new_x_chunk) # previous
             start_y = start_y + new_y_labels # previous
             counters_dict[y_train[i]] += len(new_y_labels) # previous
@@ -196,4 +234,7 @@ def augment_train(X_train, y_train, max_quantity_to_add=4500, path_to_save_aug=P
 
 
 if __name__ == '__main__':
-    print(args.original_data_path)
+    print(args)
+    X_train, y_train = get_data(args.original_data_path)
+    shape = get_image_shape(args.original_data_path)
+    # augment_train()
